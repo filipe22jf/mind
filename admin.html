@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Cronograma de Estudos</title>
+    
+    <!-- PWA Configuration -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="MindMed">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* MindMed Color Palette */
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --border-color: #475569;
+            --accent-color: #10b981;
+            --accent-hover: #059669;
+            --progress-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+            --success-color: #10b981;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        /* Light theme variables */
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-card: #f1f5f9;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #cbd5e1;
+            --accent-color: #10b981;
+            --accent-hover: #059669;
+            --progress-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #3b82f6;
+            --success-color: #10b981;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-primary);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .menu-toggle:hover {
+            background-color: var(--bg-secondary);
+            transform: scale(1.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .theme-toggle, .help-btn {
+            background: none;
+            border: none;
+            color: var(--accent-color);
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .theme-toggle:hover, .help-btn:hover {
+            background-color: var(--bg-secondary);
+            transform: scale(1.1);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: -280px;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            z-index: 200;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .sidebar.open {
+            left: 0;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .sidebar-header {
+            padding: 2rem 1.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .user-info h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .user-info p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color), transparent);
+            transition: width 0.3s ease;
+            z-index: -1;
+        }
+
+        .nav-item:hover::before, .nav-item.active::before {
+            width: 100%;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--text-primary);
+            border-left-color: var(--accent-color);
+            transform: translateX(5px);
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Main Content */
+        .main-container {
+            display: flex;
+            min-height: calc(100vh - 80px);
+        }
+
+        .content {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Admin-specific styles */
+        .tabs {
+            display: flex;
+            background: var(--bg-card);
+            border-radius: 0.75rem;
+            padding: 0.25rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 0.75rem 1.5rem;
+            text-align: center;
+            background: transparent;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: var(--accent-color);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .tab:hover:not(.active) {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        .stat-card h3 {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-card .change {
+            font-size: 0.875rem;
+            color: var(--success-color);
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .btn-danger {
+            background: var(--error-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .table th,
+        .table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table th {
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+        }
+
+        .table tr:hover {
+            background: var(--bg-secondary);
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background: rgb(16 185 129 / 0.1);
+            color: var(--success-color);
+        }
+
+        .badge-warning {
+            background: rgb(245 158 11 / 0.1);
+            color: var(--warning-color);
+        }
+
+        .badge-error {
+            background: rgb(239 68 68 / 0.1);
+            color: var(--error-color);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 0.75rem;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h3 {
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+
+            .content {
+                padding: 1rem;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                text-align: left;
+            }
+
+            .actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <a href="#" class="logo">
+                <div class="logo-icon">M</div>
+                MindMed
+            </a>
+        </div>
+        <div class="header-right">
+            <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+            <button class="help-btn" onclick="showHelp()">?</button>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="user-profile">
+                <div class="user-avatar">AD</div>
+                <div class="user-info">
+                    <h3>Administrador</h3>
+                    <p>Administrador</p>
+                </div>
+            </div>
+        </div>
+        <div class="sidebar-nav">
+            <a href="#" class="nav-item active" onclick="showTab('overview')">
+                <span class="nav-icon">📊</span>
+                Visão Geral
+            </a>
+            <a href="#" class="nav-item" onclick="showTab('schedules')">
+                <span class="nav-icon">📅</span>
+                Cronogramas
+            </a>
+            <a href="#" class="nav-item" onclick="showTab('students')">
+                <span class="nav-icon">👥</span>
+                Alunos
+            </a>
+            <a href="#" class="nav-item" id="logout-btn">
+                <span class="nav-icon">🚪</span>
+                Sair
+            </a>
+        </div>
+    </nav>
+
+    <!-- Overlay -->
+    <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <main class="content">
+            <!-- Visão Geral -->
+            <div id="overview" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total de Alunos</h3>
+                        <div class="value" id="totalStudents">0</div>
+                        <div class="change">+2 este mês</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Cronogramas</h3>
+                        <div class="value" id="totalSchedules">0</div>
+                        <div class="change">1 ativo</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Sistema</h3>
+                        <div class="value">Online</div>
+                        <div class="change">99.9% uptime</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Atividade Recente</h2>
+                    <div id="recentActivity">
+                        <div class="empty-state">
+                            <h3>Nenhuma atividade recente</h3>
+                            <p>As atividades dos alunos aparecerão aqui</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cronogramas -->
+            <div id="schedules" class="tab-content">
+                <div class="card">
+                    <h2>Criar Novo Cronograma</h2>
+                    <form id="scheduleForm">
+                        <div class="form-group">
+                            <label for="scheduleTitle">Título do Cronograma</label>
+                            <input type="text" id="scheduleTitle" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="scheduleDescription">Descrição</label>
+                            <textarea id="scheduleDescription" class="form-control"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="scheduleWeeks">Número de Semanas</label>
+                            <input type="number" id="scheduleWeeks" class="form-control" min="1" max="52" value="12" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="scheduleContent">Conteúdo Semanal (JSON)</label>
+                            <textarea id="scheduleContent" class="form-control" rows="8" placeholder='{"semana1": {"topico": "Anatomia Básica", "tarefas": ["Estudar sistema cardiovascular", "Resolver exercícios"]}, "semana2": {...}}'></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="scheduleActive"> Cronograma Ativo
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Criar Cronograma</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h2>Cronogramas Existentes</h2>
+                    <div class="loading" id="schedulesLoading">Carregando cronogramas...</div>
+                    <div id="schedulesList"></div>
+                </div>
+            </div>
+
+            <!-- Alunos -->
+            <div id="students" class="tab-content">
+                <div class="card">
+                    <h2>Alunos Cadastrados</h2>
+                    <div class="loading" id="studentsLoading">Carregando alunos...</div>
+                    <div id="studentsList"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal para Editar Cronograma -->
+    <div id="editScheduleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Cronograma</h3>
+                <button class="close-btn" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editScheduleForm">
+                <input type="hidden" id="editScheduleId">
+                <div class="form-group">
+                    <label for="editScheduleTitle">Título do Cronograma</label>
+                    <input type="text" id="editScheduleTitle" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="editScheduleDescription">Descrição</label>
+                    <textarea id="editScheduleDescription" class="form-control"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editScheduleWeeks">Número de Semanas</label>
+                    <input type="number" id="editScheduleWeeks" class="form-control" min="1" max="52" required>
+                </div>
+                <div class="form-group">
+                    <label for="editScheduleContent">Conteúdo Semanal (JSON)</label>
+                    <textarea id="editScheduleContent" class="form-control" rows="8"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="editScheduleActive"> Cronograma Ativo
+                    </label>
+                </div>
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Aluno -->
+    <div id="editStudentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Aluno</h3>
+                <button class="close-btn" onclick="closeStudentModal()">&times;</button>
+            </div>
+            <form id="editStudentForm">
+                <input type="hidden" id="editStudentId">
+                <div class="form-group">
+                    <label for="editStudentName">Nome Completo</label>
+                    <input type="text" id="editStudentName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="editStudentEmail">Email</label>
+                    <input type="email" id="editStudentEmail" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="editStudentPhone">Telefone</label>
+                    <input type="tel" id="editStudentPhone" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="editStudentCourse">Curso/Especialidade</label>
+                    <select id="editStudentCourse" class="form-control" required>
+                        <option value="">Selecione o curso</option>
+                        <option value="medicina_geral">Medicina Geral</option>
+                        <option value="cardiologia">Cardiologia</option>
+                        <option value="neurologia">Neurologia</option>
+                        <option value="pediatria">Pediatria</option>
+                        <option value="ginecologia">Ginecologia</option>
+                        <option value="ortopedia">Ortopedia</option>
+                        <option value="psiquiatria">Psiquiatria</option>
+                        <option value="dermatologia">Dermatologia</option>
+                        <option value="oftalmologia">Oftalmologia</option>
+                        <option value="outro">Outro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editStudentYear">Ano da Residência</label>
+                    <select id="editStudentYear" class="form-control" required>
+                        <option value="">Selecione o ano</option>
+                        <option value="R1">R1 (1º ano)</option>
+                        <option value="R2">R2 (2º ano)</option>
+                        <option value="R3">R3 (3º ano)</option>
+                        <option value="R4">R4 (4º ano)</option>
+                        <option value="R5">R5 (5º ano)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="editStudentActive"> Aluno Ativo
+                    </label>
+                </div>
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeStudentModal()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuração do Supabase
+        const SUPABASE_URL = 'https://ceypwejzhtmccnqvkmou.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleXB3ZWp6aHRtY2NucXZrbW91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzODgxNzQsImV4cCI6MjA3MTk2NDE3NH0.pUbjz-ycVB_O_tenARc94ZIieiIO-VmWGsC_jR-3B-I';
+        
+        // Inicializar Supabase
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Sidebar functions
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+            
+            // Impedir que o clique no overlay feche a sidebar imediatamente
+            if (sidebar.classList.contains('open')) {
+                setTimeout(() => {
+                    overlay.onclick = closeSidebar;
+                }, 100);
+            }
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+        }
+
+        // Theme toggle functionality
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const themeToggleBtn = document.querySelector('.theme-toggle');
+            
+            if (currentTheme === 'light') {
+                // Switch to dark theme
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggleBtn.textContent = '🌙';
+                localStorage.setItem('mindmed_theme', 'dark');
+            } else {
+                // Switch to light theme
+                document.documentElement.setAttribute('data-theme', 'light');
+                themeToggleBtn.textContent = '☀️';
+                localStorage.setItem('mindmed_theme', 'light');
+            }
+        }
+
+        // Initialize theme on page load
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('mindmed_theme');
+            const themeToggleBtn = document.querySelector('.theme-toggle');
+            
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                themeToggleBtn.textContent = savedTheme === 'light' ? '☀️' : '🌙';
+            } else {
+                // Default to dark theme
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggleBtn.textContent = '🌙';
+                localStorage.setItem('mindmed_theme', 'dark');
+            }
+        }
+
+        // Help function
+        function showHelp() {
+            alert('Ajuda: Navegue pelo menu lateral para acessar as diferentes funcionalidades do painel administrativo.\n\n📊 Visão Geral: Veja estatísticas e atividades recentes\n📅 Cronogramas: Crie e gerencie cronogramas de estudo\n👥 Alunos: Visualize e gerencie alunos cadastrados');
+        }
+
+        // Gerenciamento de Abas
+        function showTab(tabName) {
+            // Remover classe active de todas as abas e conteúdos
+            document.querySelectorAll('.nav-item').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Adicionar classe active na aba e conteúdo selecionados
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            // Salvar aba ativa no localStorage para persistência
+            localStorage.setItem('activeAdminTab', tabName);
+            
+            // Carregar dados específicos da aba
+            if (tabName === 'overview') {
+                loadOverviewData();
+            } else if (tabName === 'schedules') {
+                loadSchedules();
+            } else if (tabName === 'students') {
+                loadStudents();
+            }
+
+            // Fechar a sidebar em dispositivos móveis
+            if (window.innerWidth < 768) {
+                closeSidebar();
+            }
+        }
+
+        // Carregar aba ativa salva
+        function loadActiveTab() {
+            const savedTab = localStorage.getItem('activeAdminTab') || 'overview';
+            
+            // Remover classe active de todas as abas e conteúdos
+            document.querySelectorAll('.nav-item').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Encontrar e ativar a aba salva
+            const tabButton = document.querySelector(`[onclick="showTab('${savedTab}')"]`);
+            const tabContent = document.getElementById(savedTab);
+            
+            if (tabButton && tabContent) {
+                tabButton.classList.add('active');
+                tabContent.classList.add('active');
+                
+                // Carregar dados da aba ativa
+                if (savedTab === 'overview') {
+                    loadOverviewData();
+                } else if (savedTab === 'schedules') {
+                    loadSchedules();
+                } else if (savedTab === 'students') {
+                    loadStudents();
+                }
+            } else {
+                // Fallback para overview se a aba salva não existir
+                const overviewTab = document.querySelector(`[onclick="showTab('overview')"]`);
+                const overviewContent = document.getElementById('overview');
+                if (overviewTab && overviewContent) {
+                    overviewTab.classList.add('active');
+                    overviewContent.classList.add('active');
+                    loadOverviewData();
+                }
+            }
+        }
+
+        // Funções para a aba Visão Geral
+        async function loadOverviewData() {
+            try {
+                // Carregar estatísticas
+                const { count: studentCount, error: studentError } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true });
+                
+                const { count: scheduleCount, error: scheduleError } = await supabase
+                    .from('schedules')
+                    .select('*', { count: 'exact', head: true });
+                
+                if (!studentError && !scheduleError) {
+                    document.getElementById('totalStudents').textContent = studentCount;
+                    document.getElementById('totalSchedules').textContent = scheduleCount;
+                }
+                
+                // Carregar atividades recentes
+                const { data: activities, error: activitiesError } = await supabase
+                    .from('user_activities')
+                    .select(`
+                        *,
+                        profiles:user_id (name)
+                    `)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+                
+                if (activitiesError) {
+                    console.error('Erro ao carregar atividades:', activitiesError);
+                    return;
+                }
+                
+                const activityContainer = document.getElementById('recentActivity');
+                
+                if (activities && activities.length > 0) {
+                    let html = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Usuário</th>
+                                    <th>Ação</th>
+                                    <th>Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    activities.forEach(activity => {
+                        const date = new Date(activity.created_at).toLocaleString('pt-BR');
+                        html += `
+                            <tr>
+                                <td>${activity.profiles?.name || 'Usuário'}</td>
+                                <td>${activity.action}</td>
+                                <td>${date}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    activityContainer.innerHTML = html;
+                } else {
+                    activityContainer.innerHTML = `
+                        <div class="empty-state">
+                            <h3>Nenhuma atividade recente</h3>
+                            <p>As atividades dos alunos aparecerão aqui</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar dados da visão geral:', error);
+            }
+        }
+
+        // Funções para a aba Cronogramas
+        async function loadSchedules() {
+            const loadingElement = document.getElementById('schedulesLoading');
+            const schedulesList = document.getElementById('schedulesList');
+            
+            loadingElement.style.display = 'block';
+            schedulesList.innerHTML = '';
+            
+            try {
+                const { data: schedules, error } = await supabase
+                    .from('schedules')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                loadingElement.style.display = 'none';
+                
+                if (schedules && schedules.length > 0) {
+                    let html = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Título</th>
+                                    <th>Semanas</th>
+                                    <th>Status</th>
+                                    <th>Criado em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    schedules.forEach(schedule => {
+                        const createdDate = new Date(schedule.created_at).toLocaleDateString('pt-BR');
+                        const statusClass = schedule.is_active ? 'badge-success' : 'badge-warning';
+                        const statusText = schedule.is_active ? 'Ativo' : 'Inativo';
+                        
+                        html += `
+                            <tr>
+                                <td>${schedule.title}</td>
+                                <td>${schedule.weeks}</td>
+                                <td><span class="badge ${statusClass}">${statusText}</span></td>
+                                <td>${createdDate}</td>
+                                <td>
+                                    <div class="actions">
+                                        <button class="btn btn-primary btn-sm" onclick="editSchedule('${schedule.id}')">Editar</button>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${schedule.id}')">Excluir</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    schedulesList.innerHTML = html;
+                } else {
+                    schedulesList.innerHTML = `
+                        <div class="empty-state">
+                            <h3>Nenhum cronograma encontrado</h3>
+                            <p>Crie seu primeiro cronograma usando o formulário acima</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                loadingElement.style.display = 'none';
+                console.error('Erro ao carregar cronogramas:', error);
+                schedulesList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Erro ao carregar cronogramas</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Funções para a aba Alunos
+        async function loadStudents() {
+            const loadingElement = document.getElementById('studentsLoading');
+            const studentsList = document.getElementById('studentsList');
+            
+            loadingElement.style.display = 'block';
+            studentsList.innerHTML = '';
+            
+            try {
+                const { data: students, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                loadingElement.style.display = 'none';
+                
+                if (students && students.length > 0) {
+                    let html = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Email</th>
+                                    <th>Curso</th>
+                                    <th>Ano</th>
+                                    <th>Status</th>
+                                    <th>Cadastrado em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    students.forEach(student => {
+                        const createdDate = new Date(student.created_at).toLocaleDateString('pt-BR');
+                        const statusClass = student.is_active ? 'badge-success' : 'badge-error';
+                        const statusText = student.is_active ? 'Ativo' : 'Inativo';
+                        
+                        html += `
+                            <tr>
+                                <td>${student.name || 'Não informado'}</td>
+                                <td>${student.email}</td>
+                                <td>${student.course || 'Não definido'}</td>
+                                <td>${student.residency_year || 'Não definido'}</td>
+                                <td><span class="badge ${statusClass}">${statusText}</span></td>
+                                <td>${createdDate}</td>
+                                <td>
+                                    <div class="actions">
+                                        <button class="btn btn-primary btn-sm" onclick="editStudent('${student.id}')">Editar</button>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteStudent('${student.id}')">Excluir</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    studentsList.innerHTML = html;
+                } else {
+                    studentsList.innerHTML = `
+                        <div class="empty-state">
+                            <h3>Nenhum aluno encontrado</h3>
+                            <p>Os alunos cadastrados aparecerão aqui</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                loadingElement.style.display = 'none';
+                console.error('Erro ao carregar alunos:', error);
+                studentsList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>Erro ao carregar alunos</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Função para editar aluno (implementação corrigida)
+        async function editStudent(studentId) {
+            try {
+                const { data: student, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', studentId)
+                    .single();
+                
+                if (error) {
+                    throw error;
+                }
+                
+                document.getElementById('editStudentId').value = student.id;
+                document.getElementById('editStudentName').value = student.name || '';
+                document.getElementById('editStudentEmail').value = student.email || '';
+                document.getElementById('editStudentPhone').value = student.phone || '';
+                document.getElementById('editStudentCourse').value = student.course || '';
+                document.getElementById('editStudentYear').value = student.residency_year || '';
+                document.getElementById('editStudentActive').checked = student.is_active;
+                
+                document.getElementById('editStudentModal').classList.add('active');
+            } catch (error) {
+                console.error('Erro ao carregar aluno para edição:', error);
+                alert('Erro ao carregar aluno: ' + error.message);
+            }
+        }
+
+        // Função para lidar com o envio do formulário de edição de aluno
+        async function handleEditStudentSubmit(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('editStudentId').value;
+            const name = document.getElementById('editStudentName').value;
+            const email = document.getElementById('editStudentEmail').value;
+            const phone = document.getElementById('editStudentPhone').value;
+            const course = document.getElementById('editStudentCourse').value;
+            const year = document.getElementById('editStudentYear').value;
+            const isActive = document.getElementById('editStudentActive').checked;
+            
+            try {
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                        name,
+                        email,
+                        phone,
+                        course,
+                        residency_year: year,
+                        is_active: isActive,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', id);
+                
+                if (error) {
+                    throw error;
+                }
+                
+                alert('Aluno atualizado com sucesso!');
+                closeStudentModal();
+                loadStudents();
+            } catch (error) {
+                console.error('Erro ao atualizar aluno:', error);
+                alert('Erro ao atualizar aluno: ' + error.message);
+            }
+        }
+
+        // Função para excluir aluno
+        async function deleteStudent(studentId) {
+            if (!confirm('Tem certeza que deseja excluir este aluno? Esta ação não pode ser desfeita.')) {
+                return;
+            }
+            
+            try {
+                const { error } = await supabase
+                    .from('profiles')
+                    .delete()
+                    .eq('id', studentId);
+                
+                if (error) {
+                    throw error;
+                }
+                
+                alert('Aluno excluído com sucesso!');
+                loadStudents();
+            } catch (error) {
+                console.error('Erro ao excluir aluno:', error);
+                alert('Erro ao excluir aluno: ' + error.message);
+            }
+        }
+
+        // Função para fechar o modal de aluno
+        function closeStudentModal() {
+            document.getElementById('editStudentModal').classList.remove('active');
+        }
+
+        // Função para editar cronograma
+        async function editSchedule(scheduleId) {
+            try {
+                const { data: schedule, error } = await supabase
+                    .from('schedules')
+                    .select('*')
+                    .eq('id', scheduleId)
+                    .single();
+                
+                if (error) {
+                    throw error;
+                }
+                
+                document.getElementById('editScheduleId').value = schedule.id;
+                document.getElementById('editScheduleTitle').value = schedule.title;
+                document.getElementById('editScheduleDescription').value = schedule.description || '';
+                document.getElementById('editScheduleWeeks').value = schedule.weeks;
+                document.getElementById('editScheduleContent').value = JSON.stringify(schedule.content, null, 2);
+                document.getElementById('editScheduleActive').checked = schedule.is_active;
+                
+                document.getElementById('editScheduleModal').classList.add('active');
+            } catch (error) {
+                console.error('Erro ao carregar cronograma para edição:', error);
+                alert('Erro ao carregar cronograma: ' + error.message);
+            }
+        }
+
+        // Função para excluir cronograma
+        async function deleteSchedule(scheduleId) {
+            if (!confirm('Tem certeza que deseja excluir este cronograma? Esta ação não pode ser desfeita.')) {
+                return;
+            }
+            
+            try {
+                const { error } = await supabase
+                    .from('schedules')
+                    .delete()
+                    .eq('id', scheduleId);
+                
+                if (error) {
+                    throw error;
+                }
+                
+                alert('Cronograma excluído com sucesso!');
+                loadSchedules();
+            } catch (error) {
+                console.error('Erro ao excluir cronograma:', error);
+                alert('Erro ao excluir cronograma: ' + error.message);
+            }
+        }
+
+        // Função para fechar o modal de edição
+        function closeEditModal() {
+            document.getElementById('editScheduleModal').classList.remove('active');
+        }
+
+        // Inicialização quando o DOM estiver carregado
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTheme();
+            loadActiveTab();
+            
+            // Adicionar event listeners aos formulários
+            document.getElementById('scheduleForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const title = document.getElementById('scheduleTitle').value;
+                const description = document.getElementById('scheduleDescription').value;
+                const weeks = parseInt(document.getElementById('scheduleWeeks').value);
+                const content = document.getElementById('scheduleContent').value;
+                const isActive = document.getElementById('scheduleActive').checked;
+                
+                try {
+                    const contentObj = content ? JSON.parse(content) : {};
+                    
+                    const { error } = await supabase
+                        .from('schedules')
+                        .insert({
+                            title,
+                            description,
+                            weeks,
+                            content: contentObj,
+                            is_active: isActive
+                        });
+                    
+                    if (error) {
+                        throw error;
+                    }
+                    
+                    alert('Cronograma criado com sucesso!');
+                    this.reset();
+                    loadSchedules();
+                } catch (error) {
+                    console.error('Erro ao criar cronograma:', error);
+                    alert('Erro ao criar cronograma: ' + error.message);
+                }
+            });
+            
+            document.getElementById('editScheduleForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const id = document.getElementById('editScheduleId').value;
+                const title = document.getElementById('editScheduleTitle').value;
+                const description = document.getElementById('editScheduleDescription').value;
+                const weeks = parseInt(document.getElementById('editScheduleWeeks').value);
+                const content = document.getElementById('editScheduleContent').value;
+                const isActive = document.getElementById('editScheduleActive').checked;
+                
+                try {
+                    const contentObj = content ? JSON.parse(content) : {};
+                    
+                    const { error } = await supabase
+                        .from('schedules')
+                        .update({
+                            title,
+                            description,
+                            weeks,
+                            content: contentObj,
+                            is_active: isActive,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', id);
+                    
+                    if (error) {
+                        throw error;
+                    }
+                    
+                    alert('Cronograma atualizado com sucesso!');
+                    closeEditModal();
+                    loadSchedules();
+                } catch (error) {
+                    console.error('Erro ao atualizar cronograma:', error);
+                    alert('Erro ao atualizar cronograma: ' + error.message);
+                }
+            });
+            
+            // Adicionar event listener para o formulário de edição de aluno
+            document.getElementById('editStudentForm').addEventListener('submit', handleEditStudentSubmit);
+            
+            // Adicionar event listener para o botão de logout
+            document.getElementById('logout-btn').addEventListener('click', function(e) {
+                e.preventDefault();
+                if (confirm('Tem certeza que deseja sair?')) {
+                    localStorage.removeItem('supabase.auth.token');
+                    window.location.href = 'index.html';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
