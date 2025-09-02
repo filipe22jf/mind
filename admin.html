@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Painel Administrativo - MindMed</title>
+    
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <style>
+        /* --- ESTILOS GERAIS E VARIÁVEIS --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0f172a; --bg-secondary: #1e293b; --bg-card: #334155;
+            --text-primary: #ffffff; --text-secondary: #94a3b8; --border-color: #475569;
+            --accent-color: #10b981; --accent-hover: #059669; --error-color: #ef4444;
+            --warning-color: #f59e0b; --success-color: #10b981; --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1   );
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        }
+        [data-theme="light"] {
+            --bg-primary: #ffffff; --bg-secondary: #f8fafc; --bg-card: #f1f5f9;
+            --text-primary: #1e293b; --text-secondary: #64748b; --border-color: #cbd5e1;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: var(--bg-primary); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; display: none; }
+        
+        /* --- HEADER --- */
+        .header { background: var(--bg-primary); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 100; }
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .logo { display: flex; align-items: center; gap: 0.5rem; font-size: 1.5rem; font-weight: 700; color: var(--text-primary); text-decoration: none; }
+        .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        .header-right { display: flex; align-items: center; gap: 1rem; }
+        .theme-toggle, .help-btn { background: none; border: none; color: var(--accent-color); font-size: 1.25rem; cursor: pointer; padding: 0.5rem; border-radius: 50%; transition: all 0.3s ease; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+        .theme-toggle:hover, .help-btn:hover { background-color: var(--bg-secondary); }
+
+        /* --- SIDEBAR --- */
+        .hamburger-btn { background: none; border: none; color: var(--text-primary); font-size: 1.25rem; cursor: pointer; padding: 0.5rem; border-radius: 50%; transition: all 0.3s ease; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+        .hamburger-btn:hover { background-color: var(--bg-secondary); }
+        .sidebar { position: fixed; top: 0; left: -300px; width: 280px; height: 100%; background: var(--bg-secondary); z-index: 1100; transition: left 0.3s ease-in-out; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); }
+        .sidebar.active { left: 0; }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color); }
+        .close-sidebar-btn { background: none; border: none; color: var(--text-secondary); font-size: 2rem; cursor: pointer; }
+        .sidebar-menu { display: flex; flex-direction: column; padding: 1rem 0; flex-grow: 1; }
+        .sidebar-footer { padding: 1rem 0; border-top: 1px solid var(--border-color); }
+        .sidebar .nav-tab { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; color: var(--text-secondary); font-size: 1rem; text-align: left; border-left: 4px solid transparent; transition: all 0.3s ease; width: 100%; }
+        .sidebar .nav-tab:hover { background-color: var(--bg-primary); color: var(--text-primary); }
+        .sidebar .nav-tab.active { color: var(--accent-color); border-left-color: var(--accent-color); background-color: var(--bg-primary); }
+        .sidebar .nav-tab i { width: 20px; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .overlay.active { opacity: 1; visibility: visible; }
+
+        /* --- CONTEÚDO PRINCIPAL --- */
+        .main-container { flex: 1; width: 100%; transition: margin-left 0.3s ease-in-out; }
+        .content { padding: 2rem; max-width: 1200px; margin: 0 auto; width: 100%; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @media (min-width: 769px) { .main-container.sidebar-active { margin-left: 280px; } }
+
+        /* --- COMPONENTES --- */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: var(--bg-card); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid var(--border-color); }
+        .stat-card h3 { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; }
+        .stat-card .value { font-size: 2rem; font-weight: 700; }
+        .card { background: var(--bg-card); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .card h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        .form-control { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-primary); color: var(--text-primary); font-size: 0.875rem; }
+        .form-control:focus { outline: none; border-color: var(--accent-color); }
+        textarea.form-control { resize: vertical; min-height: 100px; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; }
+        .btn-primary { background: var(--accent-color); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--error-color); color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .table th, .table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .table th { font-weight: 600; color: var(--text-secondary); }
+        .table tr:hover { background: var(--bg-secondary); }
+        .badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+        .badge-success { background: rgb(16 185 129 / 0.1); color: var(--success-color); }
+        .badge-danger { background: rgb(239 68 68 / 0.1); color: var(--error-color); }
+        .actions { display: flex; gap: 0.5rem; }
+        .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-secondary); }
+        .empty-state h3 { margin-bottom: 0.5rem; color: var(--text-primary); }
+        .loading { text-align: center; padding: 2rem; }
+
+        /* --- MODAL --- */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 1200; align-items: center; justify-content: center; animation: fadeIn 0.3s ease; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--bg-card); border-radius: 0.75rem; padding: 2rem; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .modal-header h3 { font-size: 1.25rem; font-weight: 600; }
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); }
+
+        /* --- CORREÇÃO PARA RESPONSIVIDADE DA TABELA --- */
+        .card > div {
+            overflow-x: auto;
+        }
+        .table {
+            min-width: 600px; /* Ajuste este valor se necessário */
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <button class="hamburger-btn" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
+            <a href="#" class="logo">
+                <div class="logo-icon">M</div>
+                MindMed Admin
+            </a>
+        </div>
+        <div class="header-right">
+            <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></button>
+            <button class="help-btn" id="helpBtn"><i class="fas fa-question-circle"></i></button>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="#" class="logo">
+                <div class="logo-icon">A</div>
+                Admin
+            </a>
+            <button class="close-sidebar-btn" id="closeSidebarBtn">&times;</button>
+        </div>
+        <div class="sidebar-menu">
+            <button class="nav-tab active" data-tab="overview"><i class="fas fa-chart-bar"></i> Visão Geral</button>
+            <button class="nav-tab" data-tab="schedules"><i class="fas fa-calendar-alt"></i> Cronogramas</button>
+            <button class="nav-tab" data-tab="students"><i class="fas fa-users"></i> Alunos</button>
+        </div>
+        <div class="sidebar-footer">
+            <button class="nav-tab" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sair</button>
+        </div>
+    </nav>
+
+    <!-- Overlay -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-container">
+        <div class="content">
+            <!-- Aba Visão Geral -->
+            <div id="overview" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card"><h3>Total de Alunos</h3><div class="value" id="totalStudents">--</div></div>
+                    <div class="stat-card"><h3>Cronogramas Ativos</h3><div class="value" id="totalSchedules">--</div></div>
+                </div>
+                <div class="card">
+                    <h2>Atividade Recente</h2>
+                    <div id="recentActivity"><div class="loading">Carregando atividades...</div></div>
+                </div>
+            </div>
+
+            <!-- Aba Cronogramas -->
+            <div id="schedules" class="tab-content">
+                <div class="card">
+                    <h2>Criar Novo Cronograma</h2>
+                    <form id="scheduleForm">
+                        <div class="form-group"><label for="scheduleTitle">Título</label><input type="text" id="scheduleTitle" class="form-control" required></div>
+                        <div class="form-group"><label for="scheduleDescription">Descrição</label><textarea id="scheduleDescription" class="form-control"></textarea></div>
+                        <div class="form-group"><label for="scheduleWeeks">Semanas</label><input type="number" id="scheduleWeeks" class="form-control" min="1" value="12" required></div>
+                        <div class="form-group"><label for="scheduleContent">Conteúdo (JSON)</label><textarea id="scheduleContent" class="form-control" rows="6" placeholder='{"semana1": {"topico": "...", "tarefas": [...]}}'></textarea></div>
+                        <div class="form-group"><label><input type="checkbox" id="scheduleActive"> Ativo</label></div>
+                        <button type="submit" class="btn btn-primary">Criar Cronograma</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h2>Cronogramas Existentes</h2>
+                    <div id="schedulesList"><div class="loading">Carregando...</div></div>
+                </div>
+            </div>
+
+            <!-- Aba Alunos -->
+            <div id="students" class="tab-content">
+                <div class="card">
+                    <h2>Alunos Cadastrados</h2>
+                    <div id="studentsList"><div class="loading">Carregando...</div></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal de Edição de Cronograma -->
+    <div id="editScheduleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Cronograma</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <form id="editScheduleForm">
+                <input type="hidden" id="editScheduleId">
+                <div class="form-group"><label for="editScheduleTitle">Título</label><input type="text" id="editScheduleTitle" class="form-control" required></div>
+                <div class="form-group"><label for="editScheduleDescription">Descrição</label><textarea id="editScheduleDescription" class="form-control"></textarea></div>
+                <div class="form-group"><label for="editScheduleWeeks">Semanas</label><input type="number" id="editScheduleWeeks" class="form-control" min="1" required></div>
+                <div class="form-group"><label><input type="checkbox" id="editScheduleActive"> Ativo</label></div>
+                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Edição de Aluno -->
+    <div id="editStudentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Aluno</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <form id="editStudentForm">
+                <input type="hidden" id="editStudentId">
+                <div class="form-group"><label for="editStudentName">Nome</label><input type="text" id="editStudentName" class="form-control" required></div>
+                <div class="form-group"><label for="editStudentEmail">Email</label><input type="email" id="editStudentEmail" class="form-control" disabled></div>
+                <div class="form-group">
+                    <label for="editStudentStatus">Status</label>
+                    <select id="editStudentStatus" class="form-control">
+                        <option value="true">Ativo</option>
+                        <option value="false">Inativo</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURAÇÃO E ELEMENTOS GLOBAIS ---
+        const supabaseUrl = 'https://ceypwejzhtmccnqvkmou.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleXB3ZWp6aHRtY2NucXZrbW91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzODgxNzQsImV4cCI6MjA3MTk2NDE3NH0.pUbjz-ycVB_O_tenARc94ZIieiIO-VmWGsC_jR-3B-I';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey  );
+
+        // Elementos da UI
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const mainContainer = document.querySelector('.main-container');
+        const navTabs = document.querySelectorAll('.nav-tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const themeToggle = document.getElementById('themeToggle');
+        const helpBtn = document.getElementById('helpBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const scheduleForm = document.getElementById('scheduleForm');
+
+        // Elementos dos Modais
+        const editScheduleModal = document.getElementById('editScheduleModal');
+        const editStudentModal = document.getElementById('editStudentModal');
+        const editScheduleForm = document.getElementById('editScheduleForm');
+        const editStudentForm = document.getElementById('editStudentForm');
+
+        // --- AUTENTICAÇÃO E INICIALIZAÇÃO ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+            if (!profile || profile.role !== 'admin') {
+                await supabase.auth.signOut();
+                alert('Acesso negado. Você não tem permissão de administrador.');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            document.body.style.display = 'block';
+            initializeTheme();
+            setupEventListeners();
+            restoreActiveTab();
+        });
+
+        // --- LÓGICA DA INTERFACE (UI) ---
+        function setupEventListeners() {
+            hamburgerBtn.addEventListener('click', openSidebar);
+            closeSidebarBtn.addEventListener('click', closeSidebar);
+            overlay.addEventListener('click', () => {
+                closeSidebar();
+                closeAllModals();
+            });
+            themeToggle.addEventListener('click', toggleTheme);
+            helpBtn.addEventListener('click', showHelp);
+            logoutBtn.addEventListener('click', handleLogout);
+            scheduleForm.addEventListener('submit', handleCreateSchedule);
+            editScheduleForm.addEventListener('submit', handleUpdateSchedule);
+            editStudentForm.addEventListener('submit', handleUpdateStudent);
+
+            navTabs.forEach(tab => {
+                if (tab.id !== 'logoutBtn') tab.addEventListener('click', handleTabClick);
+            });
+
+            document.querySelectorAll('.modal .close-btn').forEach(btn => {
+                btn.addEventListener('click', closeAllModals);
+            });
+        }
+
+        function openSidebar() {
+            sidebar.classList.add('active');
+            overlay.classList.add('active');
+            if (window.innerWidth > 768) mainContainer.classList.add('sidebar-active');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('active');
+            if (!document.querySelector('.modal.active')) {
+                overlay.classList.remove('active');
+            }
+            mainContainer.classList.remove('sidebar-active');
+        }
+
+        function handleTabClick(e) {
+            const tabButton = e.currentTarget;
+            const tabName = tabButton.dataset.tab;
+
+            navTabs.forEach(t => t.classList.remove('active'));
+            tabButton.classList.add('active');
+
+            tabContents.forEach(c => c.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+
+            localStorage.setItem('activeAdminTab', tabName);
+
+            if (tabName === 'overview') loadOverviewData();
+            if (tabName === 'schedules') loadSchedules();
+            if (tabName === 'students') loadStudents();
+            
+            if (window.innerWidth <= 768) closeSidebar();
+        }
+
+        function restoreActiveTab() {
+            const savedTab = localStorage.getItem('activeAdminTab') || 'overview';
+            const targetNavTab = document.querySelector(`.nav-tab[data-tab="${savedTab}"]`);
+            if (targetNavTab) {
+                targetNavTab.click();
+            } else {
+                document.querySelector('.nav-tab[data-tab="overview"]').click();
+            }
+        }
+
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('mindmed_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            themeToggle.querySelector('i').className = savedTheme === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        function toggleTheme() {
+            const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('mindmed_theme', newTheme);
+            initializeTheme();
+        }
+
+        function showHelp() {
+            alert('Ajuda:\n\n• Visão Geral: Estatísticas rápidas e atividade recente.\n• Cronogramas: Crie e gerencie os planos de estudo para os alunos.\n• Alunos: Visualize e gerencie os usuários cadastrados na plataforma.');
+        }
+
+        async function handleLogout() {
+            if (confirm('Tem certeza que deseja sair?')) {
+                const { error } = await supabase.auth.signOut();
+                if (error) {
+                    console.error('Erro ao fazer logout:', error);
+                    alert('Não foi possível sair. Tente novamente.');
+                } else {
+                    localStorage.removeItem('activeAdminTab');
+                    window.location.href = 'login.html';
+                }
+            }
+        }
+
+        function openModal(modalElement) {
+            modalElement.classList.add('active');
+            overlay.classList.add('active');
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(modal => modal.classList.remove('active'));
+            if (!sidebar.classList.contains('active')) {
+                overlay.classList.remove('active');
+            }
+        }
+
+        // --- FUNÇÕES DE DADOS (SUPABASE) ---
+
+        async function loadOverviewData() {
+            const { count: studentCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).not('role', 'eq', 'admin');
+            const { count: scheduleCount } = await supabase.from('schedules').select('*', { count: 'exact', head: true, filter: 'is_active,eq,true' });
+            document.getElementById('totalStudents').textContent = studentCount ?? '0';
+            document.getElementById('totalSchedules').textContent = scheduleCount ?? '0';
+            
+            const activityContainer = document.getElementById('recentActivity');
+            const { data: activities, error } = await supabase.from('user_activities').select('*, profiles(name)').order('created_at', { ascending: false }).limit(5);
+            
+            if (error || !activities || activities.length === 0) {
+                activityContainer.innerHTML = `<div class="empty-state"><h3>Nenhuma atividade recente</h3></div>`;
+                return;
+            }
+
+            let html = `<table class="table"><thead><tr><th>Usuário</th><th>Ação</th><th>Data</th></tr></thead><tbody>`;
+            activities.forEach(act => {
+                html += `<tr><td>${act.profiles ? act.profiles.name : 'Usuário Deletado'}</td><td>${act.action}</td><td>${new Date(act.created_at).toLocaleString('pt-BR')}</td></tr>`;
+            });
+            html += `</tbody></table>`;
+            activityContainer.innerHTML = html;
+        }
+
+        async function loadSchedules() {
+            const container = document.getElementById('schedulesList');
+            container.innerHTML = `<div class="loading">Carregando cronogramas...</div>`;
+            const { data, error } = await supabase.from('schedules').select('*').order('created_at', { ascending: false });
+
+            if (error || !data || data.length === 0) {
+                container.innerHTML = `<div class="empty-state"><h3>Nenhum cronograma criado</h3><p>Use o formulário acima para criar o primeiro.</p></div>`;
+                return;
+            }
+
+            let html = `<table class="table"><thead><tr><th>Título</th><th>Semanas</th><th>Status</th><th>Ações</th></tr></thead><tbody>`;
+            data.forEach(s => {
+                html += `
+                    <tr>
+                        <td>${s.title}</td>
+                        <td>${s.weeks}</td>
+                        <td><span class="badge ${s.is_active ? 'badge-success' : 'badge-danger'}">${s.is_active ? 'Ativo' : 'Inativo'}</span></td>
+                        <td class="actions">
+                            <button class="btn btn-sm" onclick="editSchedule('${s.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        async function handleCreateSchedule(event) {
+            event.preventDefault();
+            const form = event.target;
+            let content;
+            try {
+                content = JSON.parse(form.scheduleContent.value || '{}');
+            } catch (e) {
+                alert('O conteúdo JSON fornecido é inválido. Por favor, corrija e tente novamente.');
+                return;
+            }
+
+            const schedule = {
+                title: form.scheduleTitle.value,
+                description: form.scheduleDescription.value,
+                weeks: parseInt(form.scheduleWeeks.value),
+                content: content,
+                is_active: form.scheduleActive.checked
+            };
+
+            const { error } = await supabase.from('schedules').insert(schedule);
+            if (error) {
+                alert('Erro ao criar cronograma: ' + error.message);
+            } else {
+                alert('Cronograma criado com sucesso!');
+                form.reset();
+                loadSchedules();
+            }
+        }
+
+        async function editSchedule(id) {
+            const { data, error } = await supabase.from('schedules').select('*').eq('id', id).single();
+            if (error || !data) {
+                alert('Não foi possível carregar os dados do cronograma.');
+                return;
+            }
+            document.getElementById('editScheduleId').value = data.id;
+            document.getElementById('editScheduleTitle').value = data.title;
+            document.getElementById('editScheduleDescription').value = data.description;
+            document.getElementById('editScheduleWeeks').value = data.weeks;
+            document.getElementById('editScheduleActive').checked = data.is_active;
+            openModal(editScheduleModal);
+        }
+
+        async function handleUpdateSchedule(event) {
+            event.preventDefault();
+            const id = document.getElementById('editScheduleId').value;
+            const updates = {
+                title: document.getElementById('editScheduleTitle').value,
+                description: document.getElementById('editScheduleDescription').value,
+                weeks: parseInt(document.getElementById('editScheduleWeeks').value),
+                is_active: document.getElementById('editScheduleActive').checked,
+            };
+
+            const { error } = await supabase.from('schedules').update(updates).eq('id', id);
+            if (error) {
+                alert('Erro ao atualizar cronograma: ' + error.message);
+            } else {
+                alert('Cronograma atualizado com sucesso!');
+                closeAllModals();
+                loadSchedules();
+            }
+        }
+
+        async function deleteSchedule(id) {
+            if (confirm('Tem certeza que deseja deletar este cronograma? Esta ação não pode ser desfeita.')) {
+                const { error } = await supabase.from('schedules').delete().eq('id', id);
+                if (error) {
+                    alert('Erro ao deletar: ' + error.message);
+                } else {
+                    alert('Cronograma deletado com sucesso.');
+                    loadSchedules();
+                }
+            }
+        }
+
+        // -- ALUNOS --
+        async function loadStudents() {
+    const container = document.getElementById('studentsList');
+    container.innerHTML = `<div class="loading">Carregando alunos...</div>`;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        container.innerHTML = `<div class="empty-state"><h3>Erro de autenticação</h3><p>Não foi possível verificar o usuário.</p></div>`;
+        return;
+    }
+    const adminId = user.id;
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .not('id', 'eq', adminId)
+        .order('name');
+
+    if (error) {
+        console.error('Erro ao carregar alunos:', error);
+        container.innerHTML = `<div class="empty-state"><h3>Erro ao carregar alunos</h3><p>${error.message}</p></div>`;
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        container.innerHTML = `<div class="empty-state"><h3>Nenhum aluno encontrado</h3></div>`;
+        return;
+    }
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // Usando template literals (crases) para construir o HTML
+    let html = `
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.forEach(profile => {
+        const name = profile.name || 'Nome não definido';
+        const email = profile.email || 'Email não disponível';
+        const isActive = profile.is_active;
+
+        // Adiciona cada linha da tabela à string HTML
+        html += `
+            <tr>
+                <td>${name}</td>
+                <td>${email}</td>
+                <td>
+                    <span class="badge ${isActive ? 'badge-success' : 'badge-danger'}">
+                        ${isActive ? 'Ativo' : 'Inativo'}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-sm" onclick="editStudent('${profile.id}')"><i class="fas fa-user-edit"></i></button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteStudent('${profile.id}')"><i class="fas fa-user-slash"></i></button>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+    // --- FIM DA CORREÇÃO ---
+
+    container.innerHTML = html;
+}
+
+
+        async function editStudent(id) {
+            const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
+            if (error || !data) {
+                alert('Não foi possível carregar os dados do aluno.');
+                return;
+            }
+            document.getElementById('editStudentId').value = data.id;
+            document.getElementById('editStudentName').value = data.name;
+            document.getElementById('editStudentEmail').value = data.email;
+            document.getElementById('editStudentStatus').value = String(data.is_active); // Convertido para string
+            openModal(editStudentModal);
+        }
+
+        async function handleUpdateStudent(event) {
+            event.preventDefault();
+            const id = document.getElementById('editStudentId').value;
+            const updates = {
+                name: document.getElementById('editStudentName').value,
+                is_active: document.getElementById('editStudentStatus').value === 'true',
+            };
+
+            const { error } = await supabase.from('profiles').update(updates).eq('id', id);
+            if (error) {
+                alert('Erro ao atualizar perfil do aluno: ' + error.message);
+            } else {
+                alert('Aluno atualizado com sucesso!');
+                closeAllModals();
+                loadStudents();
+            }
+        }
+
+        async function deleteStudent(id) {
+            if (confirm('Atenção: Deletar um aluno irá remover seu perfil, mas não o usuário de autenticação. Deseja continuar?')) {
+                const { error } = await supabase.from('profiles').delete().eq('id', id);
+                if (error) {
+                    alert('Erro ao deletar perfil: ' + error.message);
+                } else {
+                    alert('Perfil do aluno deletado com sucesso.');
+                    loadStudents();
+                    loadOverviewData();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
